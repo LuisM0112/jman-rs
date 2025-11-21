@@ -30,8 +30,15 @@ struct Asset {
   binaries: Vec<Binary>,
 }
 
+fn home_dir() -> PathBuf {
+  dirs::home_dir().unwrap_or_else(|| {
+    eprintln!("Home dir not found");
+    std::process::exit(1)
+  })
+}
+
 fn base_dir() -> PathBuf {
-  dirs::home_dir().unwrap().join(".jman")
+  home_dir().join(".jman")
 }
 
 fn versions_dir() -> PathBuf {
@@ -90,7 +97,7 @@ fn main() {
 
   match matches.subcommand() {
     Some(("list", _)) => list_versions(),
-    Some(("list-remote", _)) => list_versions_remote().unwrap(),
+    Some(("list-remote", _)) => list_versions_remote(),
     Some(("use", arg)) => {
       let version = arg.get_one::<String>("version").unwrap();
       use_version(version);
@@ -108,35 +115,31 @@ fn main() {
   }
 }
 
-/**
- * TODO:
- * - Validar checksum
- * - Arreglar las excepciones
- * - Borrar archivos de la version si falla la descarga
-*/
-
 fn list_versions() {
   let dir = versions_dir();
-  if dir.exists() {
-    println!("Installed versions:");
-    for entry in fs::read_dir(dir).unwrap() {
-      let entry = entry.unwrap();
-      if entry.path().is_dir() {
-        println!("- {}", entry.file_name().to_string_lossy());
-      }
-    }
-  } else {
+  if !dir.exists() {
     println!("There are not versions installed yet.");
+    return;
+  }
+
+  println!("Installed versions:");
+  for entry in fs::read_dir(dir).unwrap() {
+    let entry = entry.unwrap();
+    if entry.path().is_dir() {
+      println!("- {}", entry.file_name().to_string_lossy());
+    }
   }
 }
 
 fn use_version(version: &str) {
   let target = versions_dir().join(version);
-  let target = find_bin_path(&target).unwrap();
-  if !target.exists() {
-    eprintln!("The version {} does not exist in {:?}", version, target);
-    return;
-  }
+  let target = match find_bin_path(&target) {
+    Some(path) => path,
+    None => {
+      eprintln!("The version {} does not exist in {:?}", version, target);
+      return;
+    },
+  };
 
   let current = current_symlink();
   if current.exists() {
@@ -161,7 +164,7 @@ fn use_version(version: &str) {
   println!("JAVA_HOME set at {}", current.display());
 }
 
-fn list_versions_remote() -> Result<(), Box<dyn Error>> {
+fn list_versions_remote() {
 
   let url = "https://api.adoptium.net/v3/info/available_releases";
 
@@ -174,12 +177,16 @@ fn list_versions_remote() -> Result<(), Box<dyn Error>> {
 
   let json_str = String::from_utf8_lossy(&output.stdout);
 
-  let info: AvailableReleases = json::from_str(&json_str)
-    .expect("Failed to parse JSON response");
-  
+  let info: AvailableReleases = match json::from_str(&json_str) {
+    Ok(info) => info,
+    Err(e) => {
+      eprintln!("Failed to parse JSON response: {}", e);
+      return;
+    }
+  };
+
   println!("Available LTS releases: {:?}", info.available_lts_releases);
   println!("Available releases: {:?}", info.available_releases);
-  Ok(())
 }
 
 fn install_version(version: &str) {
@@ -190,25 +197,36 @@ fn install_version(version: &str) {
     return;
   }
 
-  let assets = match fetch_version_assets(version) {
-    Some(assets) => assets,
-    None => return,
+  let Some(assets) = fetch_version_assets(version) else {
+    eprintln!("Failed to fetch version data");
+    return;
   };
+
+  if let Err(e) = fs::create_dir_all(&dir) {
+    eprintln!("Failed to create version directory: {}", e);
+    return;
+  }
 
   let pkg = &assets[0].binaries[0].package;
   println!("Downloading from: {}", pkg.link);
 
-  fs::create_dir_all(&dir).expect("Failed to create version directory");
   let output_path = dir.join(&pkg.name);
 
-  match download_file(&pkg.link, &output_path) {
-    Ok(_) => println!("Downloaded JDK {} to {}", version, output_path.display()),
-    Err(e) => eprintln!("Failed to download: {}", e),
+  if let Err(e) = download_file(&pkg.link, &output_path) {
+    eprintln!("Failed to download: {}", e);
+    return;
   }
 
-  extract_file(&output_path, &dir).expect("Failed to extract file");
+  println!("Downloaded JDK {} to {}", version, output_path.display());
 
-  fs::remove_file(&output_path).expect("Failed to delete compressed file");
+  if let Err(e) = extract_file(&output_path, &dir) {
+    eprintln!("Failed to extract file: {}", e);
+    return;
+  }
+
+  if let Err(e) = fs::remove_file(&output_path) {
+    eprintln!("Failed to delete compressed file: {}", e);
+  }
 }
 
 fn remove_version(version: &str) {
@@ -222,22 +240,20 @@ fn remove_version(version: &str) {
   let current = current_symlink();
   let is_current_symlink = is_active(&version_dir, &current);
 
-  match fs::remove_dir_all(&version_dir) {
-    Ok(_) => println!("Version {} removed.", version),
-    Err(e) => {
-      eprintln!("Failed to remove version {}: {}", version, e);
-      return;
-    }
+  if let Err(e) = fs::remove_dir_all(&version_dir) {
+    eprintln!("Failed to remove version {}: {}", version, e);
+    return;
   }
+
+  println!("Version {} removed.", version);
 
   if !is_current_symlink {
     return;
   }
 
-  if let Err(e) = fs::remove_file(&current) {
-    eprintln!("Warning: Failed to remove current symlink: {}", e);
-  } else {
-    println!("Active version was removed. Symlink 'current' deleted.");
+  match fs::remove_file(&current) {
+    Ok(_) => println!("Active version was removed. Symlink 'current' deleted."),
+    Err(e) => eprintln!("Warning: Failed to remove current symlink: {}", e),
   }
 }
 
@@ -297,18 +313,28 @@ fn set_env() {
       base_dir().display()
     );
   
-    fs::write(&env_file, content).unwrap();
+    if let Err(e) = fs::write(&env_file, content) {
+      eprintln!("Failed to write env file: {}", e);
+      return;
+    }
 
-    let bashrc = dirs::home_dir().unwrap().join(".bashrc");
+    let bashrc = home_dir().join(".bashrc");
     let line = "source \"$HOME/.jman/env.sh\"";
     let bashrc_content = fs::read_to_string(&bashrc).unwrap_or_default();
 
-    if !bashrc_content.contains(line) {
-      let updated = format!("{}\n{}", bashrc_content, line);
-      fs::write(&bashrc, updated).unwrap();
-      println!("Environment variables loaded into ~/.bashrc");
-      println!("To use this java version on this session run: . ~/.jman/env.sh")
+    if bashrc_content.contains(line) {
+      return;
     }
+
+    let updated = format!("{}\n{}", bashrc_content, line);
+
+    if let Err(e) = fs::write(&bashrc, updated) {
+      eprintln!("Failed to write in bashrc: {}", e);
+      return;
+    }
+
+    println!("Environment variables loaded into ~/.bashrc");
+    println!("To use this java version on this session run: . ~/.jman/env.sh")
   }
 }
 
