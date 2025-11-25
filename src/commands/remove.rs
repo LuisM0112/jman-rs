@@ -1,7 +1,5 @@
 use std::{fs, path::PathBuf};
-
 use crate::paths::{current_symlink, versions_dir};
-
 
 pub fn remove_version(version: &str) {
   let version_dir = versions_dir().join(version);

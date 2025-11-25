@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 pub fn home_dir() -> PathBuf {
-  dirs::home_dir().unwrap_or_else(|| {
+  dirs_next::home_dir().unwrap_or_else(|| {
     eprintln!("Home dir not found");
     std::process::exit(1)
   })

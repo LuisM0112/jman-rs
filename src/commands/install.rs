@@ -1,7 +1,5 @@
 use std::fs;
-
 use miniserde::json;
-
 use crate::{models::Asset, paths::versions_dir, util::{download::download_file, extract::extract_file}};
 
 enum OS {
