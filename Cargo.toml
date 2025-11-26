@@ -2,6 +2,9 @@
 name = "jman-rs"
 version = "0.1.0"
 edition = "2024"
+description = "Lightweight OpenJDK version manager CLI for Linux, Windows, or macOS"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/LuisM0112/jman-rs"
 
 [dependencies]
 clap = "4.5.50"
