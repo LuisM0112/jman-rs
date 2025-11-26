@@ -7,7 +7,7 @@ Fast, minimal, and cross-platform Java version switching — written in Rust.
 
 > `jman-rs` downloads OpenJDK binaries directly from the [Eclipse Adoptium (Temurin) API](https://api.adoptium.net/).
 
-### Features
+## Features
 
 - Install multiple OpenJDK versions
 
@@ -25,7 +25,7 @@ Fast, minimal, and cross-platform Java version switching — written in Rust.
 
   - Windows → User-level registry (JAVA_HOME + PATH)
 
-### Directory Structure
+## Directory Structure
 
 jman-rs stores everything under:
 
@@ -40,7 +40,7 @@ jman-rs stores everything under:
 └─ env.sh          # Linux/macOS only
 ```
 
-### How It Works
+## How It Works
 
 **Linux / macOS**
 
@@ -59,7 +59,7 @@ jman-rs stores everything under:
 
 - Requires restarting terminal after switching versions
 
-### Usage
+## Usage
 
 **List installed versions**
 
@@ -91,7 +91,7 @@ jman use 21
 jman remove 17
 ```
 
-### Building From Source
+## Building From Source
 
 ```bash
 git clone https://github.com/LuisM0112/jman-rs
@@ -102,12 +102,12 @@ cargo build --release
 Binary will be located at:
 `target/release/jman-rs`
 
-### Contributing
+## Contributing
 
 Pull requests are welcome!
 Feel free to open issues for suggestions or bug reports.
 
-### License
+## License
 
 Licensed under either of
 
