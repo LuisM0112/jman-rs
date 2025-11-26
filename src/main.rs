@@ -1,5 +1,4 @@
 use clap::{Arg, Command};
-use std::fs;
 
 mod paths;
 mod models;
@@ -14,6 +13,7 @@ mod commands {
   pub mod install;
   pub mod use_version;
   pub mod remove;
+  pub mod env;
 }
 
 fn main() {
@@ -68,7 +68,7 @@ fn main() {
     Some(("use", arg)) => {
       let version = arg.get_one::<String>("version").unwrap();
       commands::use_version::use_version(version);
-      set_env();
+      commands::env::set_env();
     }
     Some(("install", arg)) => {
       let version = arg.get_one::<String>("version").unwrap();
@@ -79,40 +79,5 @@ fn main() {
       commands::remove::remove_version(version);
     }
     _ => {},
-  }
-}
-
-fn set_env() {
-  // #[cfg(unix)]
-  {
-    let env_file = paths::base_dir().join("env.sh");
-
-    let content = format!(
-      "export JAVA_HOME=\"{}/current\"\nexport PATH=\"$JAVA_HOME/bin:$PATH\"\n",
-      paths::base_dir().display()
-    );
-  
-    if let Err(e) = fs::write(&env_file, content) {
-      eprintln!("Failed to write env file: {}", e);
-      return;
-    }
-
-    let bashrc = paths::home_dir().join(".bashrc");
-    let line = "source \"$HOME/.jman/env.sh\"";
-    let bashrc_content = fs::read_to_string(&bashrc).unwrap_or_default();
-
-    if bashrc_content.contains(line) {
-      return;
-    }
-
-    let updated = format!("{}\n{}", bashrc_content, line);
-
-    if let Err(e) = fs::write(&bashrc, updated) {
-      eprintln!("Failed to write in bashrc: {}", e);
-      return;
-    }
-
-    println!("Environment variables loaded into ~/.bashrc");
-    println!("To use this java version on this session run: . ~/.jman/env.sh")
   }
 }
