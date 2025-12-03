@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::read_dir;
 use crate::paths::versions_dir;
 
 pub fn list_versions() {
@@ -8,11 +8,27 @@ pub fn list_versions() {
     return;
   }
 
-  println!("Installed versions:");
-  for entry in fs::read_dir(dir).unwrap() {
-    let entry = entry.unwrap();
-    if entry.path().is_dir() {
-      println!("- {}", entry.file_name().to_string_lossy());
+  let entries = match read_dir(dir) {
+    Ok(entries) => entries,
+    Err(e) => {
+      eprintln!("Failed to read versions directory: {}", e);
+      return;
     }
+  };
+
+  let versions: Vec<_> = entries
+    .flatten()
+    .filter(|e| e.path().is_dir())
+    .map(|e| e.file_name().to_string_lossy().to_string())
+    .collect();
+
+  if versions.is_empty() {
+    println!("There are not versions installed yet.");
+    return;
+  }
+  
+  println!("Installed versions:");
+  for version in versions {
+    println!("- {}", version);
   }
 }

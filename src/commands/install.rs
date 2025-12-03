@@ -69,12 +69,17 @@ fn fetch_version_assets(version: &str) -> Option<Vec<Asset>> {
 
   println!("Fetching JDK {}", version);
 
-  let output = std::process::Command::new("curl")
+  let output = match std::process::Command::new("curl")
     .arg("-L")
     .arg("-s")
     .arg(&url)
-    .output()
-    .expect("Failed to run curl");
+    .output() {
+      Ok(output) => output,
+      Err(e) => {
+        eprintln!("Failed to run curl: {}", e);
+        return None;
+      }
+  };
 
   if !output.status.success() {
     println!("API request failed");
@@ -83,8 +88,13 @@ fn fetch_version_assets(version: &str) -> Option<Vec<Asset>> {
 
   let json_str = String::from_utf8_lossy(&output.stdout);
 
-  let assets: Vec<Asset> = json::from_str(&json_str)
-    .expect("Failed to parse JSON response");
+  let assets: Vec<Asset> = match json::from_str(&json_str) {
+    Ok(assets) => assets,
+    Err(e) => {
+      eprintln!("Failed to parse JSON response: {}", e);
+      return None;
+    }
+  };
 
   if assets.is_empty() {
     println!("No releases found for version {}", version);

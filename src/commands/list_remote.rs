@@ -5,12 +5,17 @@ pub fn list_versions_remote() {
 
   let url = "https://api.adoptium.net/v3/info/available_releases";
 
-  let output = std::process::Command::new("curl")
+  let output = match std::process::Command::new("curl")
     .arg("-L")
     .arg("-s")
     .arg(&url)
-    .output()
-    .expect("Failed to run curl");
+    .output() {
+      Ok(output) => output,
+      Err(e) => {
+        eprintln!("Failed to run curl: {}", e);
+        return;
+      }
+  };
 
   let json_str = String::from_utf8_lossy(&output.stdout);
 
