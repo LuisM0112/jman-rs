@@ -1,28 +1,10 @@
-use miniserde::json;
-use crate::models::AvailableReleases;
+use crate::{models::AvailableReleases, util::api::fetch_available_releases};
 
 pub fn list_versions_remote() {
-
-  let url = "https://api.adoptium.net/v3/info/available_releases";
-
-  let output = match std::process::Command::new("curl")
-    .arg("-L")
-    .arg("-s")
-    .arg(&url)
-    .output() {
-      Ok(output) => output,
-      Err(e) => {
-        eprintln!("Failed to run curl: {}", e);
-        return;
-      }
-  };
-
-  let json_str = String::from_utf8_lossy(&output.stdout);
-
-  let info: AvailableReleases = match json::from_str(&json_str) {
-    Ok(info) => info,
+  let info: AvailableReleases = match fetch_available_releases() {
+    Ok(available_releases) => available_releases,
     Err(e) => {
-      eprintln!("Failed to parse JSON response: {}", e);
+      eprintln!("Failed to fetch available releases: {}", e);
       return;
     }
   };

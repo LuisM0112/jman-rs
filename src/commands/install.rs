@@ -1,22 +1,7 @@
 use std::fs;
-use miniserde::json;
-use crate::{models::Asset, paths::versions_dir, util::{download::download_file, extract::extract_file}};
-
-enum OS {
-  Windows,
-  Linux,
-  Macos,
-}
-
-fn get_os() -> OS {
-  if cfg!(windows) {
-    OS::Windows
-  } else if cfg!(target_os = "macos") {
-    OS::Macos
-  } else {
-    OS::Linux
-  }
-}
+use crate::util::api::fetch_available_releases;
+use crate::util::{api::fetch_version_assets, download::download_file, extract::extract_file};
+use crate::paths::versions_dir;
 
 pub fn install_version(version: &str) {
   let dir = versions_dir().join(version);
@@ -26,9 +11,35 @@ pub fn install_version(version: &str) {
     return;
   }
 
-  let Some(assets) = fetch_version_assets(version) else {
-    eprintln!("Failed to fetch version data");
+  let version_num: u16 = match version.parse() {
+    Ok(version_num) => version_num,
+    Err(_) => {
+      eprintln!("Version must be a number.");
+      return;
+    }
+  };
+
+  let version_info = match fetch_available_releases() {
+    Ok(version_info) => version_info,
+    Err(e) => {
+      eprintln!("Failed to fetch available releases: {}", e);
+      return;
+    }
+  };
+
+  if !version_info.available_releases.contains(&version_num) {
+    eprintln!("Version {} does not exist. Try `jman list-remote`.", version);
     return;
+  }
+
+  println!("Fetching JDK {}", version);
+
+  let assets = match fetch_version_assets(version) {
+    Ok(assets) => assets,
+    Err(e) => {
+      eprintln!("Failed to fetch version data: {}", e);
+      return;
+    }
   };
 
   if let Err(e) = fs::create_dir_all(&dir) {
@@ -56,49 +67,4 @@ pub fn install_version(version: &str) {
   if let Err(e) = fs::remove_file(&output_path) {
     eprintln!("Failed to delete compressed file: {}", e);
   }
-}
-
-fn fetch_version_assets(version: &str) -> Option<Vec<Asset>> {
-  let os = match get_os() {
-    OS::Windows => "windows",
-    OS::Macos => "mac",
-    OS::Linux => "linux",
-  };
-
-  let url = format!("https://api.adoptium.net/v3/assets/feature_releases/{}/ga?architecture=x64&image_type=jdk&jvm_impl=hotspot&os={}&project=jdk", version, os);
-
-  println!("Fetching JDK {}", version);
-
-  let output = match std::process::Command::new("curl")
-    .arg("-L")
-    .arg("-s")
-    .arg(&url)
-    .output() {
-      Ok(output) => output,
-      Err(e) => {
-        eprintln!("Failed to run curl: {}", e);
-        return None;
-      }
-  };
-
-  if !output.status.success() {
-    println!("API request failed");
-    return None;
-  }
-
-  let json_str = String::from_utf8_lossy(&output.stdout);
-
-  let assets: Vec<Asset> = match json::from_str(&json_str) {
-    Ok(assets) => assets,
-    Err(e) => {
-      eprintln!("Failed to parse JSON response: {}", e);
-      return None;
-    }
-  };
-
-  if assets.is_empty() {
-    println!("No releases found for version {}", version);
-    return None;
-  }
-  Some(assets)
 }

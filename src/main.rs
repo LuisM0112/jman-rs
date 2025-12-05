@@ -3,6 +3,7 @@ use clap::{Arg, Command};
 mod paths;
 mod models;
 mod util {
+  pub mod api;
   pub mod download;
   pub mod extract;
 }
