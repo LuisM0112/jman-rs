@@ -1,0 +1,54 @@
+name: Build and Upload Binaries
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo build --release
+          mkdir -p release-artifacts
+          cp target/release/jman release-artifacts/jman-linux-x86_64
+          strip release-artifacts/jman-linux-x86_64 || true
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo build --release
+          mkdir -p release-artifacts
+          ARCH=$(uname -m)
+          cp target/release/jman release-artifacts/jman-macos-$ARCH
+          strip release-artifacts/* || true
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          cargo build --release
+          mkdir release-artifacts
+          copy target\release\jman.exe release-artifacts\jman-windows-x86_64.exe
+
+      - name: Upload assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
