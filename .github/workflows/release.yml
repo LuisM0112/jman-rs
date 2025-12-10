@@ -2,7 +2,10 @@ name: Build and Upload Binaries
 
 on:
   release:
-    types: [created, published]
+    types: [published]
+
+permissions:
+  contents: write
 
 jobs:
   build:
