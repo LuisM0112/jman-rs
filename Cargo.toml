@@ -1,5 +1,5 @@
 [package]
-name = "jman-rs"
+name = "jman"
 version = "0.1.0"
 edition = "2024"
 description = "Lightweight OpenJDK version manager CLI for Linux, Windows, or macOS"
