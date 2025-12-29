@@ -14,7 +14,6 @@ mod commands {
   pub mod install;
   pub mod use_version;
   pub mod remove;
-  pub mod env;
 }
 
 fn main() {
@@ -69,7 +68,6 @@ fn main() {
     Some(("use", arg)) => {
       let version = arg.get_one::<String>("version").unwrap();
       commands::use_version::use_version(version);
-      commands::env::set_env();
     }
     Some(("install", arg)) => {
       let version = arg.get_one::<String>("version").unwrap();
