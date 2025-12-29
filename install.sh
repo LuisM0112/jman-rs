@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 REPO="LuisM0112/jman-rs"
 BINARY_NAME="jman"
@@ -25,33 +24,70 @@ else
   exit 1
 fi
 
-LATEST=$(curl -s https://api.github.com/repos/$REPO/releases/latest \
-  | grep '"tag_name"' \
-  | cut -d '"' -f4)
+API_URL="https://api.github.com/repos/$REPO/releases"
 
-if [[ -z "$LATEST" ]]; then
-  echo "Could not detect latest version"
-  exit 1
+LATEST_TAG="$(curl -fsSL "$API_URL/latest" 2>/dev/null \
+  | grep '"tag_name"' \
+  | cut -d '"' -f4 || true)"
+
+if [[ -z "$LATEST_TAG" ]]; then
+  echo "No stable release found, falling back to pre-release..."
+
+  LATEST_TAG="$(curl -fsSL "$API_URL" \
+    | grep '"tag_name"' \
+    | head -n 1 \
+    | cut -d '"' -f4)"
+
+  if [[ -z "$LATEST_TAG" ]]; then
+    echo "No releases or pre-releases found"
+    exit 1
+  fi
 fi
 
 FILE="${BINARY_NAME}-${PLATFORM}-${ARCH}"
-
-URL="https://github.com/$REPO/releases/download/$LATEST/$FILE"
+URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$FILE"
 
 echo "Downloading $URL"
-
 curl -fL "$URL" -o "$BINARY_NAME"
-
 chmod +x "$BINARY_NAME"
 
-INSTALL_DIR="$HOME/.local/bin"
-mkdir -p "$INSTALL_DIR"
+APP_DIR="$HOME/.jman"
+mkdir -p $APP_DIR/bin
+mv "$BINARY_NAME" "$APP_DIR/bin"
 
-mv "$BINARY_NAME" "$INSTALL_DIR/"
+ENV_FILE="$APP_DIR/env"
+touch "$ENV_FILE"
+
+{
+  echo "#!/bin/sh"
+  echo "# jman shell setup"
+  echo 'export PATH="$HOME/.jman/bin:$PATH"'
+  echo 'export JAVA_HOME="$HOME/.jman/current"'
+  echo 'export PATH="$JAVA_HOME/bin:$PATH"'
+} >> "$ENV_FILE"
+
+BASHRC="$HOME/.bashrc"
+touch "$BASHRC"
+
+if ! grep -q '. $HOME/.jman/env' "$BASHRC"; then
+  {
+    echo '. $HOME/.jman/env'
+  } >> "$BASHRC"
+
+  ADDED_TO_PATH=true
+else
+  ADDED_TO_PATH=false
+fi
 
 echo ""
-echo "✅ Installed jman to $INSTALL_DIR"
-echo "Make sure this is in your PATH:"
-echo "export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo "Installed jman to $APP_DIR"
+
+if [[ "$ADDED_TO_PATH" = true ]]; then
+  echo "Added ~/.jman/bin to your PATH in ~/.bashrc"
+  echo "Restart your terminal or run: source ~/.bashrc"
+else
+  echo "~/.jman/bin already in PATH configuration"
+fi
+
 echo ""
 echo "Run: jman --help"
