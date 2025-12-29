@@ -23,6 +23,13 @@ pub fn remove_version(version: &str) {
     return;
   }
 
+  #[cfg(windows)]
+  match junction::delete(&current) {
+    Ok(_) => println!("Active version was removed. Junction 'current' deleted."),
+    Err(e) => eprintln!("Warning: Failed to remove current junction: {}", e),
+  }
+
+  #[cfg(unix)]
   match fs::remove_file(&current) {
     Ok(_) => println!("Active version was removed. Symlink 'current' deleted."),
     Err(e) => eprintln!("Warning: Failed to remove current symlink: {}", e),
