@@ -56,15 +56,18 @@ mkdir -p $APP_DIR/bin
 mv "$BINARY_NAME" "$APP_DIR/bin"
 
 ENV_FILE="$APP_DIR/env"
-touch "$ENV_FILE"
 
-{
-  echo "#!/bin/sh"
-  echo "# jman shell setup"
-  echo 'export PATH="$HOME/.jman/bin:$PATH"'
-  echo 'export JAVA_HOME="$HOME/.jman/current"'
-  echo 'export PATH="$JAVA_HOME/bin:$PATH"'
-} >> "$ENV_FILE"
+if [[ ! -f "$ENV_FILE" ]]; then
+  cat > "$ENV_FILE" <<'EOF'
+#!/bin/sh
+# jman shell setup
+export PATH="$HOME/.jman/bin:$PATH"
+export JAVA_HOME="$HOME/.jman/current"
+export PATH="$JAVA_HOME/bin:$PATH"
+EOF
+
+  chmod +x "$ENV_FILE"
+fi
 
 BASHRC="$HOME/.bashrc"
 touch "$BASHRC"
