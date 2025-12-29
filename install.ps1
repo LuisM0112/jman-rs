@@ -1,36 +1,59 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Installing jman..."
+$GitHubRepo = "LuisM0112/jman-rs"
+$BinaryName = "jman.exe"
 
-$repo = "LuisM0112/jman-rs"
-$binary = "jman.exe"
-$installDir = "$env:LOCALAPPDATA\Programs\jman"
+$UserHome = [Environment]::GetFolderPath("UserProfile")
+$JmanBin  = Join-Path $UserHome ".jman\bin"
+$JavaHome = Join-Path $UserHome ".jman\current"
 
-if (!(Test-Path $installDir)) {
-  New-Item -ItemType Directory -Path $installDir | Out-Null
+New-Item -ItemType Directory -Force -Path $JmanBin | Out-Null
+
+try {
+  $releaseUrl = "https://api.github.com/repos/$GitHubRepo/releases/latest"
+  $release = Invoke-RestMethod -Uri $releaseUrl -Headers $headers
+}
+catch {
+  Write-Host "No stable release found, falling back to latest pre-release..."
+
+  $releasesUrl = "https://api.github.com/repos/$GitHubRepo/releases"
+  $releases = Invoke-RestMethod -Uri $releasesUrl -Headers $headers
+
+  if (-not $releases -or $releases.Count -eq 0) {
+      throw "No releases or pre-releases found in repository"
+  }
+
+  $release = $releases | Select-Object -First 1
 }
 
-$latest = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest"
+$asset = $release.assets | Where-Object {
+  $_.name -match "windows"
+} | Select-Object -First 1
 
-$asset = $latest.assets | Where-Object { $_.name -like "*windows*" -or $_.name -like "*win*" } | Select-Object -First 1
-
-if (!$asset) {
-  Write-Error "No Windows binary found in latest release"
-  exit 1
+if (-not $asset) {
+  throw "Windows binary not found in the latest release"
 }
 
-$downloadUrl = $asset.browser_download_url
-$destination = Join-Path $installDir $binary
+$destination = Join-Path $JmanBin $BinaryName
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $destination
 
-Write-Host "Downloading $downloadUrl"
-Invoke-WebRequest -Uri $downloadUrl -OutFile $destination
-
-$path = [Environment]::GetEnvironmentVariable("Path", "User")
-
-if ($path -notlike "*$installDir*") {
-  [Environment]::SetEnvironmentVariable("Path", "$path;$installDir", "User")
-  Write-Host "Added jman to PATH"
+function Add-ToUserPath($newPath) {
+  $currentPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+  if ($currentPath -notlike "*$newPath*") {
+    [Environment]::SetEnvironmentVariable(
+      "PATH",
+      "$currentPath;$newPath",
+      "User"
+    )
+  }
 }
 
-Write-Host "Installation completed!"
-Write-Host "Restart your terminal and run: jman --version"
+Add-ToUserPath $JmanBin
+
+[Environment]::SetEnvironmentVariable("JAVA_HOME", $JavaHome, "User")
+
+Add-ToUserPath (Join-Path $JavaHome "bin")
+
+Write-Host "Installed jman in: $JmanBin"
+Write-Host "JAVA_HOME set: $JavaHome"
+Write-Host "PATH updated (requires new session)"
